@@ -1,0 +1,71 @@
+{
+    "name": "mlssh",
+    "displayName": "mlssh",
+    "description": "marlowe's ssh connection manager",
+    "version": "0.0.3",
+    "publisher": "beingj",
+    "engines": {
+        "vscode": "^1.71.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git@github.com:beingj/mlssh.git"
+    },
+    "activationEvents": [
+        "onCommand:mlssh.connectAll",
+        "onCommand:mlssh.connectSelected",
+        "onCommand:mlssh.selectConfigConnectAll",
+        "onCommand:mlssh.selectConfigConnectSelected",
+        "onCommand:mlssh.createConfig"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "mlssh.connectAll",
+                "title": "mlssh: Connect to all hosts"
+            },
+            {
+                "command": "mlssh.connectSelected",
+                "title": "mlssh: Select hosts and connect to them"
+            },
+            {
+                "command": "mlssh.selectConfigConnectAll",
+                "title": "mlssh: Select a config and connect to all hosts"
+            },
+            {
+                "command": "mlssh.selectConfigConnectSelected",
+                "title": "mlssh: Select a config, then select hosts and connect to them"
+            },
+            {
+                "command": "mlssh.createConfig",
+                "title": "mlssh: Create a mlssh config file"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "pretest": "npm run compile && npm run lint",
+        "lint": "eslint src --ext ts",
+        "test": "node ./out/test/runTest.js",
+        "pack": "vsce package"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.71.0",
+        "@types/glob": "^7.2.0",
+        "@types/mocha": "^9.1.1",
+        "@types/node": "16.x",
+        "@typescript-eslint/eslint-plugin": "^5.31.0",
+        "@typescript-eslint/parser": "^5.31.0",
+        "eslint": "^8.20.0",
+        "glob": "^8.0.3",
+        "mocha": "^10.0.0",
+        "typescript": "^4.7.4",
+        "@vscode/test-electron": "^2.1.5"
+    }
+}
