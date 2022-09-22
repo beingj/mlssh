@@ -15,7 +15,13 @@ interface HostInfo {
     username: string;
     password?: string;
     usekey?: boolean;
+    terminal?: vscode.Terminal;
 }
+
+const globalConfig: Config = {
+    cols: [],
+    hosts: [],
+};
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -30,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand("mlssh.connectAll", async () => {
             // The code you place here will be executed every time your command is executed
-            const config = getHosts();
+            const config = getConfigFromFile();
             if (!config || config.hosts.length === 0) {
                 return;
             }
@@ -38,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
             await connectHosts(config.hosts, config.cols);
         }),
         vscode.commands.registerCommand("mlssh.connectSelected", async () => {
-            const config = getHosts();
+            const config = getConfigFromFile();
             if (!config || config.hosts.length === 0) {
                 return;
             }
@@ -75,6 +81,34 @@ export function activate(context: vscode.ExtensionContext) {
                 }
 
                 await connectHosts(selectedHosts, config.cols);
+            }
+        ),
+
+        vscode.commands.registerCommand("mlssh.sendCmdToAll", async () => {
+            sendCmdsToTerminals({ selectFile: false, selectTerminals: false });
+        }),
+
+        vscode.commands.registerCommand("mlssh.sendCmdToSelected", async () => {
+            sendCmdsToTerminals({ selectFile: false, selectTerminals: true });
+        }),
+
+        vscode.commands.registerCommand(
+            "mlssh.sendCmdsInFileToAll",
+            async () => {
+                sendCmdsToTerminals({
+                    selectFile: true,
+                    selectTerminals: false,
+                });
+            }
+        ),
+
+        vscode.commands.registerCommand(
+            "mlssh.sendCmdsInFileToSelected",
+            async () => {
+                sendCmdsToTerminals({
+                    selectFile: true,
+                    selectTerminals: true,
+                });
             }
         ),
 
@@ -167,7 +201,7 @@ function showDocument(document: vscode.TextDocument): void {
     vscode.window.showTextDocument(document, viewColumn, false);
 }
 
-function getHosts(configFilePath?: string): Config | undefined {
+function getConfigFromFile(configFilePath?: string): Config | undefined {
     if (!configFilePath) {
         const folder = getRootPath();
         if (!folder) {
@@ -189,6 +223,18 @@ function getHosts(configFilePath?: string): Config | undefined {
             configFile.cols !== undefined &&
             configFile.hosts !== undefined
         ) {
+            const errors = checkHosts(configFile.hosts);
+            if (errors.length > 0) {
+                // vscode.window.showErrorMessage("errors in hosts", {
+                //     modal: true,
+                //     detail: errors.join("\n"),
+                // });
+                vscode.window.showErrorMessage(
+                    "errors in hosts: " + errors.join(", ")
+                );
+                return;
+            }
+
             const config: Config = {
                 cols: [3],
                 hosts: [],
@@ -228,11 +274,33 @@ async function selectConfig(): Promise<Config | undefined> {
         return;
     }
 
-    const config = getHosts(path.join(rootPath, selectedConfig));
+    const config = getConfigFromFile(path.join(rootPath, selectedConfig));
     if (!config || config.hosts.length === 0) {
         return;
     }
     return config;
+}
+
+function checkHosts(hosts: HostInfo[]): string[] {
+    const errors: string[] = [];
+    hosts.forEach((host) => {
+        let name = host.name;
+        if (host.name === undefined) {
+            name = "?";
+            errors.push("no name for this host");
+        }
+        if (host.host === undefined) {
+            errors.push(`no host for ${name}`);
+        }
+        if (host.username === undefined) {
+            errors.push(`no username for ${name}`);
+        }
+        if (host.usekey !== true && host.password === undefined) {
+            errors.push(`no password for ${name}`);
+        }
+    });
+
+    return errors;
 }
 
 async function selectHosts(hosts: HostInfo[]): Promise<HostInfo[]> {
@@ -240,7 +308,7 @@ async function selectHosts(hosts: HostInfo[]): Promise<HostInfo[]> {
         hosts.map((i) => ({
             ...i,
             label: i.name,
-            description: i.host,
+            description: `${i.username}@${i.host}`,
         })),
         {
             canPickMany: true,
@@ -250,11 +318,14 @@ async function selectHosts(hosts: HostInfo[]): Promise<HostInfo[]> {
     if (!selectedHosts) {
         return [];
     }
+
     return selectedHosts;
 }
 
 async function connectHosts(hosts: HostInfo[], cols: number[]): Promise<void> {
     // console.log("hosts", hosts);
+    globalConfig.hosts = hosts;
+    globalConfig.cols = cols;
     await createTerminalsByRows(hosts, cols);
     // console.log("create terminals all done");
     hosts.forEach((host) => {
@@ -315,36 +386,41 @@ async function createTerminalsOneRow(
         }
 
         await vscode.commands.executeCommand(createCmd);
+
         const host = hosts[tIdx];
+        renameIfExists(host);
         await vscode.commands.executeCommand(
             "workbench.action.terminal.renameWithArg",
             { name: host.name }
         );
+        host.terminal = vscode.window.activeTerminal;
+    }
+}
+
+function renameIfExists(host: HostInfo): void {
+    const names = vscode.window.terminals.map((i) => i.name);
+    for (let cnt = 0; cnt < 100; cnt++) {
+        if (!names.includes(host.name)) {
+            break;
+        }
+        // s.match(/.-(\d)+$/)
+        // ['t-1', '1', index: 0, input: 't-1', groups: undefined]
+        const m = host.name.match(/-(\d)+$/);
+        if (m) {
+            const idx = parseInt(m[1]) + 1;
+            host.name = `${host.name.slice(0, m.index)}-${idx}`;
+        } else {
+            host.name = `${host.name}-1`;
+        }
     }
 }
 
 function runSsh(host: HostInfo): void {
-    const ts = vscode.window.terminals;
-    const t = ts.find((j) => j.name === host.name);
+    const t = host.terminal;
     if (!t) {
         return;
     }
     t.sendText(`echo ${host.name}`);
-    if (host.host === undefined) {
-        t.sendText(`echo no host`);
-        vscode.window.showErrorMessage(`no host for ${host.name}`);
-        return;
-    }
-    if (host.username === undefined) {
-        t.sendText(`echo no username`);
-        vscode.window.showErrorMessage(`no username for ${host.name}`);
-        return;
-    }
-    if (host.usekey !== true && host.password === undefined) {
-        t.sendText(`echo no password`);
-        vscode.window.showErrorMessage(`no password for ${host.name}`);
-        return;
-    }
 
     let sshCmd: string;
     const sshExtraOpts =
@@ -356,6 +432,97 @@ function runSsh(host: HostInfo): void {
         // sshCmd = `ssh ${host.username}@${host.host} hostname`;
     }
     t.sendText(sshCmd);
+}
+
+async function sendCmdsToTerminals(options: {
+    selectTerminals: boolean;
+    selectFile: boolean;
+}): Promise<void> {
+    const allTerminals = vscode.window.terminals;
+    if (allTerminals.length === 0) {
+        vscode.window.showWarningMessage("no terminal open");
+        return;
+    }
+
+    let terminals = allTerminals;
+    if (options.selectTerminals) {
+        const selectedTerminals = await vscode.window.showQuickPick(
+            terminals.map((i) => ({
+                ...i,
+                label: i.name,
+            })),
+            {
+                canPickMany: true,
+            }
+        );
+        if (!selectedTerminals) {
+            // user quit
+            return;
+        }
+        terminals = selectedTerminals;
+    }
+
+    let cmds: string[] = [];
+    if (options.selectFile) {
+        const cmd = await getCmdFromFile();
+        if (cmd) {
+            cmds = cmd.split("\n");
+        }
+    } else {
+        const cmd = await getCmdFromUser();
+        if (cmd) {
+            cmds = [cmd];
+        }
+    }
+
+    if (cmds.length === 0) {
+        return;
+    }
+
+    terminals.forEach((t) => {
+        sendCmdsWithDelay(t, cmds);
+    });
+}
+
+async function getCmdFromUser(initCmd?: string): Promise<string | undefined> {
+    if (!initCmd) {
+        initCmd = "whoami;hostname;uptime;pwd;ls";
+    }
+
+    const cmd = await vscode.window.showInputBox({
+        title: "command to run",
+        value: initCmd,
+        valueSelection: [0, initCmd.length],
+    });
+    return cmd;
+}
+
+async function getCmdFromFile(): Promise<string | undefined> {
+    const file = await vscode.window.showOpenDialog({
+        canSelectFiles: true,
+        canSelectFolders: false,
+        canSelectMany: false,
+        title: "select a script",
+    });
+    if (!file || file.length === 0) {
+        return;
+    }
+    const cmd = fs.readFileSync(file[0].fsPath).toString();
+    return cmd;
+}
+
+function sendCmdsWithDelay(
+    terminal: vscode.Terminal,
+    cmds: string[],
+    delayMs?: number
+): void {
+    const delayMs2 = delayMs ? delayMs : 300;
+
+    cmds.forEach((cmd, idx) => {
+        setTimeout(() => {
+            terminal.sendText(cmd);
+        }, delayMs2 * idx);
+    });
 }
 
 // vscode.commands.getCommands(true).then((cmds) => {

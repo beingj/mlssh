@@ -2,7 +2,7 @@
     "name": "mlssh",
     "displayName": "mlssh",
     "description": "marlowe's ssh connection manager",
-    "version": "0.0.4",
+    "version": "0.0.5",
     "publisher": "beingj",
     "engines": {
         "vscode": "^1.71.0"
@@ -19,6 +19,10 @@
         "onCommand:mlssh.connectSelected",
         "onCommand:mlssh.selectConfigConnectAll",
         "onCommand:mlssh.selectConfigConnectSelected",
+        "onCommand:mlssh.sendCmdToAll",
+        "onCommand:mlssh.sendCmdToSelected",
+        "onCommand:mlssh.sendCmdsInFileToAll",
+        "onCommand:mlssh.sendCmdsInFileToSelected",
         "onCommand:mlssh.createConfig"
     ],
     "main": "./out/extension.js",
@@ -30,15 +34,31 @@
             },
             {
                 "command": "mlssh.connectSelected",
-                "title": "mlssh: Select hosts and connect to them"
+                "title": "mlssh: Connect to select hosts"
             },
             {
                 "command": "mlssh.selectConfigConnectAll",
-                "title": "mlssh: Select a config and connect to all hosts"
+                "title": "mlssh: Connect to all hosts in a selected config file"
             },
             {
                 "command": "mlssh.selectConfigConnectSelected",
-                "title": "mlssh: Select a config, then select hosts and connect to them"
+                "title": "mlssh: Connect to selected hosts in a selected config file"
+            },
+            {
+                "command": "mlssh.sendCmdToAll",
+                "title": "mlssh: Send commands to all terminals"
+            },
+            {
+                "command": "mlssh.sendCmdToSelected",
+                "title": "mlssh: Send commands to selected terminals"
+            },
+            {
+                "command": "mlssh.sendCmdsInFileToAll",
+                "title": "mlssh: Send commands in a file to all terminals"
+            },
+            {
+                "command": "mlssh.sendCmdsInFileToSelected",
+                "title": "mlssh: Send commands in a file to selected terminals"
             },
             {
                 "command": "mlssh.createConfig",
